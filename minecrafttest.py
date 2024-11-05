@@ -69,6 +69,11 @@ class Block:
             Coordinate(self.pos.x, self.pos.y + 1, self.pos.z + 1),
         ]
 
+    def get_center(self) -> Coordinate:
+        return Coordinate(
+            self.pos.x + 0.5, self.pos.y + 0.5, self.pos.z + 0.5
+        ) # center of block
+
 
 class Player:
     def __init__(self, pos=Coordinate(0, 0, 0)):
@@ -166,9 +171,9 @@ class Camera:
         pts = [self.project(v) for v in vertices]
 
         # DEBUG
-        for idx, pt in enumerate(pts):
-            if pt is None:
-                print(f"Vertex {idx} is out of view and not rendered.")
+        # for idx, pt in enumerate(pts):
+        #     if pt is None:
+        #         print(f"Vertex {idx} is out of view and not rendered.")
 
         return pts
 
@@ -236,23 +241,17 @@ class Screen:
         HEYYY WHEN I OCME BACK!!
         gpt ignore this vvv
         make culling acc work like
-        z ordering to avoid werid stuff once block works
-        dont render things ouside of frustrum
+        dont render things ouside of frustrum, backface culling, etc
         maybe work on perspectives like 1st and 3rd
+        collision!!
         """
 
     def render_block(self, block: Block):
         """render a Block onto screen"""
         proj_verts = self.camera.project_block(block)
-        # z_dists = [self.camera.get_zdist(*v) for v in block.get_vertices()]
-        # verts = zip(z_dists, range(len(proj_verts)), proj_verts)
-        # verts = sorted(verts, key=lambda x: x[0], reverse=True)
-        # proj_verts = [v for d, n, v in verts]
 
-        if (
-            None in proj_verts
-        ):  # if any of the vertices are None, don't render the block
-            print("BLOCK IS OUT OF VIEW AND NOT RENEDER")
+        # if any of the vertices are None, don't render the block
+        if None in proj_verts:
             return
 
         faces = [
@@ -275,17 +274,20 @@ class Screen:
         faces = [f for a, f in f_ord]  # unpack the faces
 
         for face in faces:
-            face_verts = [proj_verts[i] for i in face]  # unpack face vertices -> list of 2d points for a face
+            face_verts = [
+                proj_verts[i] for i in face
+            ]  # unpack face vertices -> list of 2d points for a face
             scrn_verts = [
                 self.denormalize(*pt) for pt in face_verts
             ]  # denormalize vertices to screen coords
-            pygame.draw.polygon(self.surface, (255, 0, 0), scrn_verts)  # draw face
+            pygame.draw.polygon(self.surface, block.color, scrn_verts)  # draw face
             pygame.draw.lines(
                 self.surface, (0, 200, 0), True, scrn_verts, 1
             )  # draw lines around face
 
-    def render(self, blocks, points, update=False):
+    def render(self, blocks: list[Block], points, update=False):
         self.render_point(*points)
+        blocks = sorted(blocks, key=lambda x: self.camera.get_zdist(x.get_center()), reverse=True)
         for block in blocks:
             self.render_block(block)
         if update:
@@ -315,7 +317,11 @@ points = [
     Coordinate(1, 1, 1),
     Coordinate(0, 1, 1),
 ]
-blocks = [Block(Coordinate(1, 0, 5), (100, 150, 255))]
+blocks = [Block(Coordinate(1, 3, 5), (100, 150, 255))]
+
+for i in range(-10, 10):
+    for j in range(-10, 10):
+        blocks.append(Block(Coordinate(i, 0, j), (112, 168, 101)))
 
 running = True
 while running:
