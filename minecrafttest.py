@@ -83,12 +83,12 @@ class Block:
         self.transparent = transparent
         self.verts = self._calc_verts()
         self.facemap = [
-            (0, 1, 2, 3),  # Front face
-            (4, 5, 6, 7),  # Back face
-            (0, 1, 5, 4),  # Bottom face
-            (2, 3, 7, 6),  # Top face
-            (1, 2, 6, 5),  # Right face
-            (0, 3, 7, 4),  # Left face
+            (0, 3, 2, 1),  # Front face (-z)
+            (4, 5, 6, 7),  # Back face (+z)
+            (0, 1, 5, 4),  # Bottom face (-y)
+            (2, 3, 7, 6),  # Top face (+y)
+            (1, 2, 6, 5),  # Right face (+x)
+            (0, 4, 7, 3),  # Left face (-x)
         ]
         self.faces = self._calc_faces()
 
@@ -264,7 +264,7 @@ class Screen:
         self.camera = camera
 
     def clear(self, update=False):
-        self.surface.fill((0, 0, 0))
+        self.surface.fill((107, 181, 237))
         if update:
             pygame.display.flip()
 
@@ -335,17 +335,36 @@ class Screen:
             self.surface, (0, 200, 0), True, scrn_verts, 1
         )  # draw lines around face
 
+        # Draw face normal
+        # face_center = face.get_center()
+        # face_normal = face.get_normal()
+        # normal_end = Coordinate(
+        #     face_center.x + face_normal[0]/2,
+        #     face_center.y + face_normal[1]/2,
+        #     face_center.z + face_normal[2]/2,
+        # )
+        # proj_center = self.camera.project(face_center)
+        # proj_normal_end = self.camera.project(normal_end)
+        # if proj_center and proj_normal_end:
+        #     scrn_center = self.denormalize(*proj_center)
+        #     scrn_normal_end = self.denormalize(*proj_normal_end)
+        #     pygame.draw.line(self.surface, (255, 0, 0), scrn_center, scrn_normal_end, 2)
+
     def render_block(self, block: Block):
         """render a Block onto screen"""
 
         faces = block.get_faces()
+        # Temporarily remove backface culling
         culled_faces = []
         for face in faces:
             if face is None:
                 continue
+            face_center = face.get_center()
+            cam_to_face = face_center - self.camera.pos
+
+            # cn = self.camera.get_normal()
             fn = face.get_normal()
-            cn = self.camera.get_normal()
-            dn = fn[0]*cn[0] + fn[1]*cn[1] + fn[2]*cn[2]
+            dn = fn[0]*cam_to_face.x + fn[1]*cam_to_face.y + fn[2]*cam_to_face.z
             if dn < 0:
                 culled_faces.append(face)
         faces = culled_faces
@@ -353,43 +372,6 @@ class Screen:
         faces.sort(key=lambda x: 0 if x is None else self.camera.get_zdist(x.get_center()), reverse=True)
         for face in faces:
             self.render_face(face)
-
-        # proj_verts = self.camera.project_block(block)
-
-        # # if any of the vertices are None, don't render the block
-        # if None in proj_verts:
-        #     return
-
-        # faces = [
-        #     (0, 1, 2, 3),  # Front face
-        #     (4, 5, 6, 7),  # Back face
-        #     (0, 1, 5, 4),  # Bottom face
-        #     (2, 3, 7, 6),  # Top face
-        #     (1, 2, 6, 5),  # Right face
-        #     (0, 3, 7, 4),  # Left face
-        # ]
-
-        # # z-ordering the faces
-        # f_ord = []
-        # bv = block.get_vertices()
-        # for f in faces:  # for each face
-        #     face_verts = [bv[i] for i in f]  # get the vertices of the face
-        #     avg = Coordinate.add(*face_verts) / len(face_verts)
-        #     f_ord.append((avg, f))  # zip avg with face
-        # f_ord = sorted(f_ord, key=lambda x: self.camera.get_zdist(x[0]), reverse=True)
-        # faces = [f for a, f in f_ord]  # unpack the faces
-
-        # for face in faces:
-        #     face_verts = [
-        #         proj_verts[i] for i in face
-        #     ]  # unpack face vertices -> list of 2d points for a face
-        #     scrn_verts = [
-        #         self.denormalize(*pt) for pt in face_verts
-        #     ]  # denormalize vertices to screen coords
-        #     pygame.draw.polygon(self.surface, block.color, scrn_verts)  # draw face
-        #     pygame.draw.lines(
-        #         self.surface, (0, 200, 0), True, scrn_verts, 1
-        #     )  # draw lines around face
 
     def render(self, blocks: list[Block], points, update=False):
         self.render_point(*points)
@@ -473,6 +455,6 @@ while running:
         screen.render_debug_info(user)
 
     pygame.display.flip()
-    clock.tick(60)
+    clock.tick(30)
 
 pygame.quit()
