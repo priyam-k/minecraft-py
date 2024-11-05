@@ -24,49 +24,48 @@ def tan(x):
 
 
 class Coordinate:
-    def __init__(self, x, y, z, yaw=None, pitch=None):
+    def __init__(self, x, y, z):
         self.x = x
         self.y = y
         self.z = z
-        self.yaw = yaw
-        self.pitch = pitch
 
-    def get(self):
+    def get(self) -> tuple:
         return (self.x, self.y, self.z)
-
-    @staticmethod
-    def add(*c):
-        x = sum([coord.x for coord in c])
-        y = sum([coord.y for coord in c])
-        z = sum([coord.z for coord in c])
-        return Coordinate(x, y, z)
+    
+    def __add__(self, other: "Coordinate") -> "Coordinate":
+        return Coordinate(self.x + other.x, self.y + other.y, self.z + other.z)
+    
+    def __sub__(self, other: "Coordinate") -> "Coordinate":
+        return Coordinate(self.x - other.x, self.y - other.y, self.z - other.z)
+    
+    def __mul__(self, other: int | float) -> "Coordinate":
+        return Coordinate(self.x * other, self.y * other, self.z * other)
+    
+    def __truediv__(self, other: int | float) -> "Coordinate":
+        return Coordinate(self.x / other, self.y / other, self.z / other)
 
 
 class Block:
-    def __init__(self, x, y, z, color):
-        self.x = x
-        self.y = y
-        self.z = z
+    def __init__(self, pos: Coordinate, color):
+        self.pos = pos
         self.color = color
 
-    def get_vertices(self):
+    def get_vertices(self) -> list[Coordinate]:
         return [
-            (self.x, self.y, self.z),
-            (self.x + 1, self.y, self.z),
-            (self.x + 1, self.y + 1, self.z),
-            (self.x, self.y + 1, self.z),
-            (self.x, self.y, self.z + 1),
-            (self.x + 1, self.y, self.z + 1),
-            (self.x + 1, self.y + 1, self.z + 1),
-            (self.x, self.y + 1, self.z + 1),
+            Coordinate(self.pos.x, self.pos.y, self.pos.z),
+            Coordinate(self.pos.x + 1, self.pos.y, self.pos.z),
+            Coordinate(self.pos.x + 1, self.pos.y + 1, self.pos.z),
+            Coordinate(self.pos.x, self.pos.y + 1, self.pos.z),
+            Coordinate(self.pos.x, self.pos.y, self.pos.z + 1),
+            Coordinate(self.pos.x + 1, self.pos.y, self.pos.z + 1),
+            Coordinate(self.pos.x + 1, self.pos.y + 1, self.pos.z + 1),
+            Coordinate(self.pos.x, self.pos.y + 1, self.pos.z + 1),
         ]
 
 
 class Player:
-    def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.z = 0
+    def __init__(self, pos=Coordinate(0, 0, 0)):
+        self.pos = pos
         self.yaw = 0  # left/right
         self.pitch = 0  # up/down
         self.cam = Camera(self)
@@ -74,9 +73,9 @@ class Player:
     def move(self, dx, dy, dz):
         """move the player by dx, dy, dz"""
         self.cam.move(dx, dy, dz)
-        self.x += dx
-        self.y += dy
-        self.z += dz
+        self.pos.x += dx
+        self.pos.y += dy
+        self.pos.z += dz
 
     def walk(self, f, r):
         """walk in the direction of the player's yaw, f units forward, r units right"""
@@ -92,12 +91,10 @@ class Player:
         self.yaw += dyaw
         self.pitch += dpitch
 
-    def teleport(self, x, y, z):
+    def teleport(self, pos: Coordinate):
         """teleport the player to given position"""
-        self.cam.teleport(x, y, z)
-        self.x = x
-        self.y = y
-        self.z = z
+        self.cam.teleport(pos)
+        self.pos = pos
 
 
 class Camera:
@@ -105,9 +102,7 @@ class Camera:
         self.fov = 90
         self.near = 0.1
         self.far = 1000
-        self.x = plyr.x
-        self.y = plyr.y
-        self.z = plyr.z
+        self.pos = plyr.pos
         self.yaw = plyr.yaw
         self.pitch = plyr.pitch
 
@@ -122,24 +117,23 @@ class Camera:
     #     self.pitch = pitch
 
     def move(self, dx, dy, dz):
-        self.x += dx
-        self.y += dy
-        self.z += dz
+        self.pos.x += dx
+        self.pos.y += dy
+        self.pos.z += dz
 
     def rotate(self, dyaw, dpitch):
         self.yaw += dyaw
         self.pitch += dpitch
 
-    def teleport(self, x, y, z):
-        self.x = x
-        self.y = y
-        self.z = z
+    def teleport(self, pos: Coordinate):
+        self.pos = pos
 
-    def project(self, x, y, z):
+    def project(self, pt: Coordinate):
         """project a 3d point onto the 2d screen in this camera's view"""
-        tx = x - self.x
-        ty = y - self.y
-        tz = z - self.z
+        # translate to camera space
+        tx = pt.x - self.pos.x
+        ty = pt.y - self.pos.y
+        tz = pt.z - self.pos.z
 
         # rotate yaw (vertical)
         rx = tx * cos(self.yaw) - tz * sin(self.yaw)
@@ -162,7 +156,7 @@ class Camera:
     def project_block(self, block: Block):
         """project a block onto the 2d screen in this camera's view"""
         vertices = block.get_vertices()
-        pts = [self.project(*v) for v in vertices]
+        pts = [self.project(v) for v in vertices]
 
         # DEBUG
         for idx, pt in enumerate(pts):
@@ -171,9 +165,9 @@ class Camera:
 
         return pts
 
-    def get_zdist(self, x, y, z):
+    def get_zdist(self, pt: Coordinate):
         """get the distance from the camera to a point"""
-        return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2 + (z - self.z) ** 2)
+        return math.sqrt((pt.x - self.pos.x) ** 2 + (pt.y - self.pos.y) ** 2 + (pt.z - self.pos.z) ** 2)
 
 
 class Screen:
@@ -192,7 +186,7 @@ class Screen:
 
     def render_debug_info(self, player: Player):
         """Draws the debug information on the screen."""
-        pos_text = f"Position: ({player.x:.2f}, {player.y:.2f}, {player.z:.2f})"
+        pos_text = f"Position: ({player.pos.x:.2f}, {player.pos.y:.2f}, {player.pos.z:.2f})"
         yaw_text = f"Yaw: {player.yaw:.2f}°"
         pitch_text = f"Pitch: {player.pitch:.2f}°"
 
@@ -218,9 +212,9 @@ class Screen:
             int((1 - y) * 0.5 * self.surface.get_width()),
         )
 
-    def render_point(self, *pts3d: tuple, color=(255, 255, 255)):
+    def render_point(self, *pts3d: Coordinate, color=(255, 255, 255)):
         for pt3d in pts3d:
-            pt = self.camera.project(*pt3d)
+            pt = self.camera.project(pt3d)
             if pt is not None:
                 scrn = self.denormalize(*pt)
                 pygame.draw.circle(self.surface, color, scrn, 5)
@@ -237,10 +231,10 @@ class Screen:
     def render_block(self, block: Block):
         """render a Block onto screen"""
         proj_verts = self.camera.project_block(block)
-        z_dists = [self.camera.get_zdist(*v) for v in block.get_vertices()]
-        verts = zip(z_dists, range(len(proj_verts)), proj_verts)
-        verts = sorted(verts, key=lambda x: x[0], reverse=True)
-        proj_verts = [v for d, n, v in verts]
+        # z_dists = [self.camera.get_zdist(*v) for v in block.get_vertices()]
+        # verts = zip(z_dists, range(len(proj_verts)), proj_verts)
+        # verts = sorted(verts, key=lambda x: x[0], reverse=True)
+        # proj_verts = [v for d, n, v in verts]
 
         if (
             None in proj_verts
@@ -257,13 +251,13 @@ class Screen:
             (0, 3, 7, 4),  # Left face
         ]
 
-        for f in face:
-            face_verts = [proj_verts[i] for i in f]
-            # TAKE THE AVERAGE OF THE FACE VERTS
-            # AND THEN I CAN ORDER BY THAT FOR THE FACES YAY
+        # for f in face:
+        #     face_verts = [proj_verts[i] for i in f]
+        #     # TAKE THE AVERAGE OF THE FACE VERTS
+        #     # AND THEN I CAN ORDER BY THAT FOR THE FACES YAY
 
         for face in faces:
-            face_verts = [proj_verts[i] for i in face]  # unpack face vertices
+            face_verts = [proj_verts[i] for i in face]  # unpack face vertices -> list of 2d points for a face
             scrn_verts = [
                 self.denormalize(*pt) for pt in face_verts
             ]  # denormalize vertices to screen coords
@@ -294,16 +288,16 @@ screen = Screen(screen_surf, user.cam)
 options = GameOptions()
 
 points = [
-    (0, 0, 0),
-    (1, 0, 0),
-    (1, 1, 0),
-    (0, 1, 0),
-    (0, 0, 1),
-    (1, 0, 1),
-    (1, 1, 1),
-    (0, 1, 1),
+    Coordinate(0, 0, 0),
+    Coordinate(1, 0, 0),
+    Coordinate(1, 1, 0),
+    Coordinate(0, 1, 0),
+    Coordinate(0, 0, 1),
+    Coordinate(1, 0, 1),
+    Coordinate(1, 1, 1),
+    Coordinate(0, 1, 1),
 ]
-blocks = [Block(1, 0, 5, (100, 150, 255))]
+blocks = [Block(Coordinate(1, 0, 5), (100, 150, 255))]
 
 running = True
 while running:
@@ -336,7 +330,7 @@ while running:
     if keys[pygame.K_LSHIFT]:
         user.move(0, -0.1, 0)
     if keys[pygame.K_r]:
-        user.teleport(0, 0, 0)
+        user.teleport(Coordinate(0, 0, 0))
 
     mouse_dx, mouse_dy = pygame.mouse.get_rel()
     user.rotate(mouse_dx * options.sensitivity, -mouse_dy * options.sensitivity)
