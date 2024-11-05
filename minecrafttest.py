@@ -52,12 +52,48 @@ class Coordinate:
         return c
 
 
-class Block:
-    def __init__(self, pos: Coordinate, color):
-        self.pos = pos
+class Face:
+    def __init__(self, vertices: list[Coordinate], color=(255, 255, 255)):
+        self.vertices = vertices
         self.color = color
 
     def get_vertices(self) -> list[Coordinate]:
+        return self.vertices
+
+    def get_center(self) -> Coordinate:
+        return Coordinate.add(*self.vertices) / len(self.vertices)
+    
+    def get_normal(self):
+        """get the normal of the face"""
+        # get two vectors on the face
+        v1 = self.vertices[1] - self.vertices[0]
+        v2 = self.vertices[2] - self.vertices[0]
+        # cross product of the two vectors is the normal
+        return (
+            v1.y * v2.z - v1.z * v2.y,
+            v1.z * v2.x - v1.x * v2.z,
+            v1.x * v2.y - v1.y * v2.x,
+        )
+
+
+class Block:
+    def __init__(self, pos: Coordinate, color, transparent=False):
+        self.pos = pos
+        self.color = color
+        self.transparent = transparent
+        self.verts = self._calc_verts()
+        self.facemap = [
+            (0, 1, 2, 3),  # Front face
+            (4, 5, 6, 7),  # Back face
+            (0, 1, 5, 4),  # Bottom face
+            (2, 3, 7, 6),  # Top face
+            (1, 2, 6, 5),  # Right face
+            (0, 3, 7, 4),  # Left face
+        ]
+        self.faces = self._calc_faces()
+
+    def _calc_verts(self):
+        """calculate vertices of block for caching"""
         return [
             Coordinate(self.pos.x, self.pos.y, self.pos.z),
             Coordinate(self.pos.x + 1, self.pos.y, self.pos.z),
@@ -69,10 +105,24 @@ class Block:
             Coordinate(self.pos.x, self.pos.y + 1, self.pos.z + 1),
         ]
 
+    def _calc_faces(self):
+        """calculate faces of block for caching"""
+        return [
+            Face([self.verts[i] for i in face], color=self.color)
+            for face in self.facemap
+        ]
+
+    def get_vertices(self) -> list[Coordinate]:
+        """get cached vertices of block"""
+        return self.verts
+
     def get_center(self) -> Coordinate:
-        return Coordinate(
-            self.pos.x + 0.5, self.pos.y + 0.5, self.pos.z + 0.5
-        ) # center of block
+        """get center of block"""
+        return Coordinate(self.pos.x + 0.5, self.pos.y + 0.5, self.pos.z + 0.5)
+
+    def get_faces(self):
+        """get cached faces of block"""
+        return self.faces
 
 
 class Player:
@@ -100,8 +150,8 @@ class Player:
     def rotate(self, dyaw, dpitch):
         """rotate the player by dyaw, dpitch"""
         self.cam.rotate(dyaw, dpitch)
-        self.yaw += dyaw
-        self.pitch += dpitch
+        self.yaw = (self.yaw + dyaw) % 360
+        self.pitch = max(min(self.pitch + dpitch, 90), -90)
 
     def teleport(self, pos: Coordinate):
         """teleport the player to given position"""
@@ -134,8 +184,8 @@ class Camera:
         self.pos.z += dz
 
     def rotate(self, dyaw, dpitch):
-        self.yaw += dyaw
-        self.pitch += dpitch
+        self.yaw = (self.yaw + dyaw) % 360
+        self.pitch = max(min(self.pitch + dpitch, 90), -90)
 
     def teleport(self, pos: Coordinate):
         self.pos = pos
@@ -165,8 +215,18 @@ class Camera:
 
         return (normx, normy)
 
+    def project_face(self, face: Face):
+        """project a face onto the 2d screen in this camera's view"""
+        return [self.project(v) for v in face.get_vertices()]
+
     def project_block(self, block: Block):
         """project a block onto the 2d screen in this camera's view"""
+
+        faces = block.get_faces()
+        for face in faces:
+            proj_verts = [self.project(v) for v in face.get_vertices()]
+            zdist = self.get_zdist(face.get_center())
+
         vertices = block.get_vertices()
         pts = [self.project(v) for v in vertices]
 
@@ -183,6 +243,14 @@ class Camera:
             (pt.x - self.pos.x) ** 2
             + (pt.y - self.pos.y) ** 2
             + (pt.z - self.pos.z) ** 2
+        )
+
+    def get_normal(self):
+        """get the normal of the camera"""
+        return (
+            cos(self.yaw) * cos(self.pitch),
+            sin(self.pitch),
+            sin(self.yaw) * cos(self.pitch),
         )
 
 
@@ -246,48 +314,88 @@ class Screen:
         collision!!
         """
 
-    def render_block(self, block: Block):
-        """render a Block onto screen"""
-        proj_verts = self.camera.project_block(block)
+    def render_face(self, face: Face):
+        """render a Face onto screen"""
 
-        # if any of the vertices are None, don't render the block
+        if face is None:
+            return
+
+        proj_verts = self.camera.project_face(face)
+
+        # if any of the vertices are None, don't render the face
         if None in proj_verts:
             return
 
-        faces = [
-            (0, 1, 2, 3),  # Front face
-            (4, 5, 6, 7),  # Back face
-            (0, 1, 5, 4),  # Bottom face
-            (2, 3, 7, 6),  # Top face
-            (1, 2, 6, 5),  # Right face
-            (0, 3, 7, 4),  # Left face
-        ]
+        scrn_verts = [
+            self.denormalize(*pt) for pt in proj_verts
+        ]  # denormalize vertices to screen coords
+        # then draw vertices
+        pygame.draw.polygon(self.surface, face.color, scrn_verts)  # draw face
+        pygame.draw.lines(
+            self.surface, (0, 200, 0), True, scrn_verts, 1
+        )  # draw lines around face
 
-        # z-ordering the faces
-        f_ord = []
-        bv = block.get_vertices()
-        for f in faces:  # for each face
-            face_verts = [bv[i] for i in f]  # get the vertices of the face
-            avg = Coordinate.add(*face_verts) / len(face_verts)
-            f_ord.append((avg, f))  # zip avg with face
-        f_ord = sorted(f_ord, key=lambda x: self.camera.get_zdist(x[0]), reverse=True)
-        faces = [f for a, f in f_ord]  # unpack the faces
+    def render_block(self, block: Block):
+        """render a Block onto screen"""
 
+        faces = block.get_faces()
+        culled_faces = []
         for face in faces:
-            face_verts = [
-                proj_verts[i] for i in face
-            ]  # unpack face vertices -> list of 2d points for a face
-            scrn_verts = [
-                self.denormalize(*pt) for pt in face_verts
-            ]  # denormalize vertices to screen coords
-            pygame.draw.polygon(self.surface, block.color, scrn_verts)  # draw face
-            pygame.draw.lines(
-                self.surface, (0, 200, 0), True, scrn_verts, 1
-            )  # draw lines around face
+            if face is None:
+                continue
+            fn = face.get_normal()
+            cn = self.camera.get_normal()
+            dn = fn[0]*cn[0] + fn[1]*cn[1] + fn[2]*cn[2]
+            if dn < 0:
+                culled_faces.append(face)
+        faces = culled_faces
+        # z-order faces and render
+        faces.sort(key=lambda x: 0 if x is None else self.camera.get_zdist(x.get_center()), reverse=True)
+        for face in faces:
+            self.render_face(face)
+
+        # proj_verts = self.camera.project_block(block)
+
+        # # if any of the vertices are None, don't render the block
+        # if None in proj_verts:
+        #     return
+
+        # faces = [
+        #     (0, 1, 2, 3),  # Front face
+        #     (4, 5, 6, 7),  # Back face
+        #     (0, 1, 5, 4),  # Bottom face
+        #     (2, 3, 7, 6),  # Top face
+        #     (1, 2, 6, 5),  # Right face
+        #     (0, 3, 7, 4),  # Left face
+        # ]
+
+        # # z-ordering the faces
+        # f_ord = []
+        # bv = block.get_vertices()
+        # for f in faces:  # for each face
+        #     face_verts = [bv[i] for i in f]  # get the vertices of the face
+        #     avg = Coordinate.add(*face_verts) / len(face_verts)
+        #     f_ord.append((avg, f))  # zip avg with face
+        # f_ord = sorted(f_ord, key=lambda x: self.camera.get_zdist(x[0]), reverse=True)
+        # faces = [f for a, f in f_ord]  # unpack the faces
+
+        # for face in faces:
+        #     face_verts = [
+        #         proj_verts[i] for i in face
+        #     ]  # unpack face vertices -> list of 2d points for a face
+        #     scrn_verts = [
+        #         self.denormalize(*pt) for pt in face_verts
+        #     ]  # denormalize vertices to screen coords
+        #     pygame.draw.polygon(self.surface, block.color, scrn_verts)  # draw face
+        #     pygame.draw.lines(
+        #         self.surface, (0, 200, 0), True, scrn_verts, 1
+        #     )  # draw lines around face
 
     def render(self, blocks: list[Block], points, update=False):
         self.render_point(*points)
-        blocks = sorted(blocks, key=lambda x: self.camera.get_zdist(x.get_center()), reverse=True)
+        blocks = sorted(
+            blocks, key=lambda x: self.camera.get_zdist(x.get_center()), reverse=True
+        )
         for block in blocks:
             self.render_block(block)
         if update:
