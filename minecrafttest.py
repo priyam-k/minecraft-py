@@ -31,18 +31,25 @@ class Coordinate:
 
     def get(self) -> tuple:
         return (self.x, self.y, self.z)
-    
+
     def __add__(self, other: "Coordinate") -> "Coordinate":
         return Coordinate(self.x + other.x, self.y + other.y, self.z + other.z)
-    
+
     def __sub__(self, other: "Coordinate") -> "Coordinate":
         return Coordinate(self.x - other.x, self.y - other.y, self.z - other.z)
-    
+
     def __mul__(self, other: int | float) -> "Coordinate":
         return Coordinate(self.x * other, self.y * other, self.z * other)
-    
+
     def __truediv__(self, other: int | float) -> "Coordinate":
         return Coordinate(self.x / other, self.y / other, self.z / other)
+
+    @staticmethod
+    def add(*coords: "Coordinate") -> "Coordinate":
+        c = Coordinate(0, 0, 0)
+        for coord in coords:
+            c += coord
+        return c
 
 
 class Block:
@@ -167,7 +174,11 @@ class Camera:
 
     def get_zdist(self, pt: Coordinate):
         """get the distance from the camera to a point"""
-        return math.sqrt((pt.x - self.pos.x) ** 2 + (pt.y - self.pos.y) ** 2 + (pt.z - self.pos.z) ** 2)
+        return math.sqrt(
+            (pt.x - self.pos.x) ** 2
+            + (pt.y - self.pos.y) ** 2
+            + (pt.z - self.pos.z) ** 2
+        )
 
 
 class Screen:
@@ -186,7 +197,9 @@ class Screen:
 
     def render_debug_info(self, player: Player):
         """Draws the debug information on the screen."""
-        pos_text = f"Position: ({player.pos.x:.2f}, {player.pos.y:.2f}, {player.pos.z:.2f})"
+        pos_text = (
+            f"Position: ({player.pos.x:.2f}, {player.pos.y:.2f}, {player.pos.z:.2f})"
+        )
         yaw_text = f"Yaw: {player.yaw:.2f}°"
         pitch_text = f"Pitch: {player.pitch:.2f}°"
 
@@ -251,10 +264,15 @@ class Screen:
             (0, 3, 7, 4),  # Left face
         ]
 
-        # for f in face:
-        #     face_verts = [proj_verts[i] for i in f]
-        #     # TAKE THE AVERAGE OF THE FACE VERTS
-        #     # AND THEN I CAN ORDER BY THAT FOR THE FACES YAY
+        # z-ordering the faces
+        f_ord = []
+        bv = block.get_vertices()
+        for f in faces:  # for each face
+            face_verts = [bv[i] for i in f]  # get the vertices of the face
+            avg = Coordinate.add(*face_verts) / len(face_verts)
+            f_ord.append((avg, f))  # zip avg with face
+        f_ord = sorted(f_ord, key=lambda x: self.camera.get_zdist(x[0]), reverse=True)
+        faces = [f for a, f in f_ord]  # unpack the faces
 
         for face in faces:
             face_verts = [proj_verts[i] for i in face]  # unpack face vertices -> list of 2d points for a face
