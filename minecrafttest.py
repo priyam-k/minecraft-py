@@ -634,7 +634,7 @@ class GameOptions:
         self.show_debug_info = True
         self.sensitivity = 0.2
         self.show_fps = True
-        self.debug_normals = False
+        self.debug_normals = True
 
     def toggle_debug_info(self):
         self.show_debug_info = not self.show_debug_info
@@ -675,24 +675,26 @@ world.add_block(
     Model(
         Coordinate(18, 2, 0),
         (150, 75, 0),
-        [
-            (0, 1, 2, 3), # mesh0
-            (3, 2, 4, 5), # mesh1
-            (5, 4, 6, 7), # mesh2
-            (7, 6, 1, 0), # mesh3
-            (0, 3, 5, 7), # mesh4
-            (1, 6, 4, 2)  # mesh5
-        ],
-        [
-            Coordinate(1, 0.33, 0),
-            Coordinate(1, 0, 0),
-            Coordinate(0, 0, 0),
-            Coordinate(0, 0.33, 0),
-            Coordinate(0, 0, 1),
-            Coordinate(0, 0.33, 1),
-            Coordinate(1, 0, 1),
-            Coordinate(1, 0.33, 1),
-        ],
+        [(2, 1, 0, ), # Face 0
+(0, 3, 2, ), # Face 1
+(3, 2, 4, ), # Face 2
+(4, 5, 3, ), # Face 3
+(5, 4, 6, ), # Face 4
+(6, 7, 5, ), # Face 5
+(1, 6, 7, ), # Face 6
+(7, 0, 1, ), # Face 7
+(5, 3, 0, ), # Face 8
+(0, 7, 5, ), # Face 9
+(4, 6, 1, ), # Face 10
+(1, 2, 4, ), # Face 11
+], [Coordinate(1.0, 0.33, 0.0),
+Coordinate(1.0, 0.0, 0.0),
+Coordinate(0.0, 0.0, 0.0),
+Coordinate(0.0, 0.33, 0.0),
+Coordinate(5.55112e-17, 0.0, 1.0),
+Coordinate(5.55112e-17, 0.33, 1.0),
+Coordinate(1.0, 0.0, 1.0),
+Coordinate(1.0, 0.33, 1.0), ],
     )
 )
 
