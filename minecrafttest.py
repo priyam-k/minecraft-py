@@ -1,5 +1,6 @@
-import pygame
 import math
+
+import pygame
 
 pygame.init()
 screen_surf = pygame.display.set_mode(
@@ -33,6 +34,9 @@ class Coordinate:
 
     def get(self) -> tuple:
         return (self.x, self.y, self.z)
+
+    def __str__(self):
+        return f"({self.x}, {self.y}, {self.z})"
 
     def __add__(self, other: "Coordinate") -> "Coordinate":
         return Coordinate(self.x + other.x, self.y + other.y, self.z + other.z)
@@ -88,6 +92,7 @@ class GenericBlock:
         self.verts = None
         self.facemap = None
         self.faces = None
+        self.hitbox = Hitbox(self.pos, Coordinate(0, 0, 0), Coordinate(1, 1, 1))
         # self.verts = self._calc_verts()
         # self.facemap = [
         #     (0, 3, 2, 1),  # Front face (-z)
@@ -324,7 +329,7 @@ class BlockVerticalSlab(GenericBlock):
         )
 
 
-class Model(GenericBlock):
+class BlockModel(GenericBlock):
     """A generic model block"""
 
     def __init__(self, pos: Coordinate, color, facemap, verts, transparent=False):
@@ -347,7 +352,7 @@ class World:
         self.blocks = {}
 
     def set_block(self, block: GenericBlock):
-        self.blocks[block.pos] = block
+        self.blocks[block.pos.get()] = block
 
     def add_block(self, block: GenericBlock):
         if block.pos not in self.blocks:
@@ -356,11 +361,62 @@ class World:
             print("Block already exists at position.")
 
     def remove_block(self, pos: Coordinate):
-        if pos in self.blocks:
-            del self.blocks[pos]
+        tpos = pos.get()
+        if tpos in self.blocks:
+            del self.blocks[tpos]
 
-    def get_block(self, pos: Coordinate):
-        return self.blocks.get(pos, None)
+    def get_block(self, pos: Coordinate) -> GenericBlock | None:
+        return self.blocks.get(pos.get(), None)
+
+
+class Hitbox:
+    def __init__(self, pos: Coordinate, start: Coordinate, end: Coordinate):
+        self.pos = pos
+        self.start = start
+        self.end = end
+
+    def contains(self, pt: Coordinate):  # TODO FIX LATER THIS ISNT REAL
+        return (
+            self.pos.x <= pt.x <= self.pos.x + self.size.x
+            and self.pos.y <= pt.y <= self.pos.y + self.size.y
+            and self.pos.z <= pt.z <= self.pos.z + self.size.z
+        )
+
+    def get_start(self):
+        return self.pos + self.start
+
+    def get_end(self):
+        return self.pos + self.end
+
+    def __str__(self):
+        return f"Hitbox at {self.pos} with start {self.pos + self.start} and end {self.pos + self.end}"
+
+    def collides(self, other: "Hitbox"):
+        starta = self.pos + self.start
+        enda = self.pos + self.end
+        startb = other.pos + other.start
+        endb = other.pos + other.end
+
+        if not (enda.x >= startb.x and endb.x >= starta.x):
+            return False
+        # Check overlap on the y-axis
+        if not (enda.y >= startb.y and endb.y >= starta.y):
+            return False
+        # Check overlap on the z-axis
+        if not (enda.z >= startb.z and endb.z >= starta.z):
+            return False
+
+        # Overlaps on all axes, so there's a collision
+        return True
+
+        return (
+            self.pos.x < other.pos.x + other.size.x
+            and self.pos.x + self.size.x > other.pos.x
+            and self.pos.y < other.pos.y + other.size.y
+            and self.pos.y + self.size.y > other.pos.y
+            and self.pos.z < other.pos.z + other.size.z
+            and self.pos.z + self.size.z > other.pos.z
+        )
 
 
 class Player:
@@ -369,20 +425,37 @@ class Player:
         self.yaw = 0  # left/right
         self.pitch = 0  # up/down
         self.cam = Camera(self)
+        self.hitbox = Hitbox(
+            self.pos, Coordinate(-0.5, 0, -0.5), Coordinate(0.5, 1, 0.5)
+        )
 
-    def move(self, dx, dy, dz):
-        """move the player by dx, dy, dz"""
-        self.cam.move(dx, dy, dz)
+    def _xmove(self, dx, world: World):
+        """move the player by dx"""
         self.pos.x += dx
+
+    def _ymove(self, dy, world: World):
+        """move the player by dy"""
         self.pos.y += dy
+
+    def _zmove(self, dz, world: World):
+        """move the player by dz"""
         self.pos.z += dz
 
-    def walk(self, f, r):
+    def move(self, dx, dy, dz, world: World):
+        """move the player by dx, dy, dz"""
+        self.cam.move(dx, dy, dz)
+        self._xmove(dx, world)
+        self._ymove(dy, world)
+        self._zmove(dz, world)
+        self.hitbox.pos = self.pos
+
+    def walk(self, f, r, world: World):
         """walk in the direction of the player's yaw, f units forward, r units right"""
         self.move(
             f * sin(self.yaw) + r * cos(self.yaw),
             0,
             f * cos(self.yaw) - r * sin(self.yaw),
+            world,
         )
 
     def rotate(self, dyaw, dpitch):
@@ -552,7 +625,7 @@ class Screen:
         collision!!
         """
 
-    def render_face(self, face: Face, outline=False, debug_normals=False):
+    def render_face(self, face: Face, visual_debug, outline=False):
         """render a Face onto screen"""
 
         if face is None:
@@ -574,7 +647,7 @@ class Screen:
                 self.surface, (0, 0, 0), True, scrn_verts, 1
             )  # draw lines around face
 
-        if debug_normals:  # draw face normals
+        if visual_debug["normals"]:  # draw face normals
             face_center = face.get_center()
             face_normal = face.get_normal()
             normal_end = Coordinate(
@@ -591,40 +664,56 @@ class Screen:
                     self.surface, (255, 0, 0), scrn_center, scrn_normal_end, 2
                 )
 
-    def render_block(self, block: GenericBlock, outline=False, debug_normals=False):
+    def render_block(self, block: GenericBlock, visual_debug, outline=False):
         """render a Block onto screen"""
 
         faces = block.get_faces()
-        # Temporarily remove backface culling
-        culled_faces = []
-        for face in faces:
-            if face is None:
-                continue
-            face_center = face.get_center()
-            cam_to_face = face_center - self.camera.pos
-
-            # cn = self.camera.get_normal()
-            fn = face.get_normal()
-            dn = fn[0] * cam_to_face.x + fn[1] * cam_to_face.y + fn[2] * cam_to_face.z
-            if dn < 0:
-                culled_faces.append(face)
-        faces = culled_faces
+        if not block.transparent:
+            # backface culling
+            culled_faces = []
+            for face in faces:
+                if face is None:
+                    continue
+                face_center = face.get_center()
+                cam_to_face = face_center - self.camera.pos
+                fn = face.get_normal()
+                # dot prod of normals
+                dn = (
+                    fn[0] * cam_to_face.x
+                    + fn[1] * cam_to_face.y
+                    + fn[2] * cam_to_face.z
+                )
+                if dn < 0:
+                    culled_faces.append(face)
+            faces = culled_faces
         # z-order faces and render
         faces.sort(
             key=lambda x: 0 if x is None else self.camera.get_zdist(x.get_center()),
             reverse=True,
         )
         for face in faces:
-            self.render_face(face, outline=outline, debug_normals=debug_normals)
+            self.render_face(face, visual_debug, outline=outline)
 
-    def render(self, world: World, points, update=False, debug_normals=False):
+        if visual_debug["hitboxes"]:
+            hitbox = block.hitbox
+            start = hitbox.get_start()
+            end = hitbox.get_end()
+            self.render_point(start, end, color=(0, 255, 0))
+            # proj_start = self.camera.project(start)
+            # proj_end = self.camera.project(end)
+            # if proj_start and proj_end:
+            #     scrn_start = self.denormalize(*proj_start)
+            #     scrn_end = self.denormalize(*proj_end)
+            #     pygame.draw.rect(self.surface, (255, 0, 0), (scrn_start, scrn_end), 2)
+
+    def render(self, world: World, points, visual_debug, update=False):
         self.render_point(*points)
         blocks = world.blocks.values()
         blocks = sorted(
             blocks, key=lambda x: self.camera.get_zdist(x.get_center()), reverse=True
         )
         for block in blocks:
-            self.render_block(block, outline=True, debug_normals=debug_normals)
+            self.render_block(block, visual_debug, outline=True)
         if update:
             pygame.display.flip()
 
@@ -634,7 +723,10 @@ class GameOptions:
         self.show_debug_info = True
         self.sensitivity = 0.2
         self.show_fps = True
-        self.debug_normals = True
+        self.visual_debug = {
+            "hitboxes": True,
+            "normals": False,
+        }
 
     def toggle_debug_info(self):
         self.show_debug_info = not self.show_debug_info
@@ -671,32 +763,6 @@ world.add_block(BlockStairs(Coordinate(10, 2, 0), (190, 168, 50), direction="e")
 world.add_block(BlockStairs(Coordinate(12, 2, 0), (190, 168, 50), direction="w"))
 world.add_block(BlockVerticalSlab(Coordinate(14, 2, 0), (190, 168, 50)))
 world.add_block(BlockVerticalSlab(Coordinate(16, 2, 0), (190, 168, 50), left=False))
-world.add_block(
-    Model(
-        Coordinate(18, 2, 0),
-        (150, 75, 0),
-        [(2, 1, 0, ), # Face 0
-(0, 3, 2, ), # Face 1
-(3, 2, 4, ), # Face 2
-(4, 5, 3, ), # Face 3
-(5, 4, 6, ), # Face 4
-(6, 7, 5, ), # Face 5
-(1, 6, 7, ), # Face 6
-(7, 0, 1, ), # Face 7
-(5, 3, 0, ), # Face 8
-(0, 7, 5, ), # Face 9
-(4, 6, 1, ), # Face 10
-(1, 2, 4, ), # Face 11
-], [Coordinate(1.0, 0.33, 0.0),
-Coordinate(1.0, 0.0, 0.0),
-Coordinate(0.0, 0.0, 0.0),
-Coordinate(0.0, 0.33, 0.0),
-Coordinate(5.55112e-17, 0.0, 1.0),
-Coordinate(5.55112e-17, 0.33, 1.0),
-Coordinate(1.0, 0.0, 1.0),
-Coordinate(1.0, 0.33, 1.0), ],
-    )
-)
 
 
 running = True
@@ -712,7 +778,7 @@ while running:
                 # pygame.display.toggle_fullscreen()
                 # if pygame.display.is_fullscreen():
                 screen_surf = pygame.display.set_mode(
-                    (800, 600),
+                    (1920, 1080),
                     pygame.FULLSCREEN
                     | pygame.RESIZABLE
                     | pygame.DOUBLEBUF
@@ -723,25 +789,25 @@ while running:
                 running = False
     keys = pygame.key.get_pressed()
     if keys[pygame.K_RIGHT]:
-        user.move(0.1, 0, 0)
+        user.move(0.1, 0, 0, world)
     if keys[pygame.K_LEFT]:
-        user.move(-0.1, 0, 0)
+        user.move(-0.1, 0, 0, world)
     if keys[pygame.K_UP]:
-        user.move(0, 0, 0.1)
+        user.move(0, 0, 0.1, world)
     if keys[pygame.K_DOWN]:
-        user.move(0, 0, -0.1)
+        user.move(0, 0, -0.1, world)
     if keys[pygame.K_w]:
-        user.walk(0.1, 0)
+        user.walk(0.1, 0, world)
     if keys[pygame.K_s]:
-        user.walk(-0.1, 0)
+        user.walk(-0.1, 0, world)
     if keys[pygame.K_a]:
-        user.walk(0, -0.1)
+        user.walk(0, -0.1, world)
     if keys[pygame.K_d]:
-        user.walk(0, 0.1)
+        user.walk(0, 0.1, world)
     if keys[pygame.K_SPACE]:
-        user.move(0, 0.1, 0)
+        user.move(0, 0.1, 0, world)
     if keys[pygame.K_LSHIFT]:
-        user.move(0, -0.1, 0)
+        user.move(0, -0.1, 0, world)
     if keys[pygame.K_r]:
         user.teleport(Coordinate(0, 0, 0))
 
@@ -749,9 +815,38 @@ while running:
     user.rotate(mouse_dx * options.sensitivity, -mouse_dy * options.sensitivity)
 
     screen.clear()
-    screen.render(world, points, debug_normals=options.debug_normals)
+    screen.render(world, points, visual_debug=options.visual_debug)
     if options.show_debug_info:
         screen.render_debug_info(user)
+
+    snap_pos = Coordinate(
+        math.floor(user.pos.x), math.floor(user.pos.y), math.floor(user.pos.z)
+    )
+    surrounding = [
+        Coordinate(0, 0, 0),
+        Coordinate(1, 0, 0),
+        Coordinate(-1, 0, 0),
+        Coordinate(0, 1, 0),
+        Coordinate(0, -1, 0),
+        Coordinate(0, 0, 1),
+        Coordinate(0, 0, -1),
+    ]
+    for pos in surrounding:
+        blk = world.get_block(snap_pos + pos)
+        # print(blk)
+        if blk is None:
+            pass  # world.add_block(Block(pos, (0, 255, 0)))
+        elif blk.hitbox.collides(user.hitbox):
+            print(f"Collided with block!!! {blk.pos.get()}")
+    # below = world.get_block(snap_pos - Coordinate(0, 1, 0))
+    # if below is None:
+    #     pass  # print(f"No block below, current: {snap_pos.get()}, hb: {user.hitbox}")
+    # elif below.hitbox.collides(user.hitbox):
+    #     print("Collided with block below")
+    # else:
+    #     print(
+    #         f"No collision with block below, current: {snap_pos.get()}, below: {below.pos.get()}"
+    #     )
 
     pygame.display.flip()
     clock.tick(30)
