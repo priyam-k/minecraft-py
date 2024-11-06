@@ -355,7 +355,7 @@ class World:
         self.blocks[block.pos.get()] = block
 
     def add_block(self, block: GenericBlock):
-        if block.pos not in self.blocks:
+        if block.pos.get() not in self.blocks:
             self.set_block(block)
         else:
             print("Block already exists at position.")
@@ -391,6 +391,9 @@ class Hitbox:
     def __str__(self):
         return f"Hitbox at {self.pos} with start {self.pos + self.start} and end {self.pos + self.end}"
 
+    def new(self, pos: Coordinate):
+        return Hitbox(pos, self.start, self.end)
+
     def collides(self, other: "Hitbox"):
         starta = self.pos + self.start
         enda = self.pos + self.end
@@ -424,30 +427,81 @@ class Player:
         self.pos = pos
         self.yaw = 0  # left/right
         self.pitch = 0  # up/down
-        self.cam = Camera(self)
+        self.cam = Camera(self.pos, self.yaw, self.pitch)
         self.hitbox = Hitbox(
-            self.pos, Coordinate(-0.5, 0, -0.5), Coordinate(0.5, 1, 0.5)
+            self.pos, Coordinate(-0.3, 0, -0.3), Coordinate(0.3, 1.8, 0.3)
         )
 
     def _xmove(self, dx, world: World):
         """move the player by dx"""
         self.pos.x += dx
+        self.cam.move(dx, 0, 0)
 
     def _ymove(self, dy, world: World):
         """move the player by dy"""
         self.pos.y += dy
+        self.cam.move(0, dy, 0)
 
     def _zmove(self, dz, world: World):
         """move the player by dz"""
         self.pos.z += dz
+        self.cam.move(0, 0, dz)
 
     def move(self, dx, dy, dz, world: World):
         """move the player by dx, dy, dz"""
-        self.cam.move(dx, dy, dz)
-        self._xmove(dx, world)
-        self._ymove(dy, world)
-        self._zmove(dz, world)
-        self.hitbox.pos = self.pos
+        collided = False
+        snap_pos = Coordinate(
+            math.floor(self.pos.x + dx),
+            math.floor(self.pos.y + dy),
+            math.floor(self.pos.z + dz),
+        )
+        next_hitbox = self.hitbox.new(self.pos + Coordinate(dx, dy, dz))
+        surrounding = [
+            Coordinate(0, 0, 0),
+            Coordinate(1, 0, 0),
+            Coordinate(-1, 0, 0),
+            Coordinate(0, 1, 0),
+            Coordinate(0, -1, 0),
+            Coordinate(0, 0, 1),
+            Coordinate(0, 0, -1),
+        ]
+        for pos in surrounding:
+            blk = world.get_block(snap_pos + pos)
+            # print(blk)
+            if blk is None:
+                pass  # world.add_block(Block(pos, (0, 255, 0)))
+            elif blk.hitbox.collides(next_hitbox):
+                # print(f"Collided with block!!! {blk.pos.get()}")
+                collided = True
+                break
+
+        if collided:
+            next_hitbox_x = self.hitbox.new(self.pos + Coordinate(dx, 0, 0))
+            next_hitbox_y = self.hitbox.new(self.pos + Coordinate(0, dy, 0))
+            next_hitbox_z = self.hitbox.new(self.pos + Coordinate(0, 0, dz))
+            for pos in surrounding:
+                blk = world.get_block(snap_pos + pos)
+                if blk is not None and blk.hitbox.collides(
+                    next_hitbox_x
+                ):  # collides in X
+                    print("Collided in X")
+                    dx = 0
+                if blk is not None and blk.hitbox.collides(
+                    next_hitbox_y
+                ):  # collides in Y
+                    print("Collided in Y")
+                    dy = 0
+                if blk is not None and blk.hitbox.collides(
+                    next_hitbox_z
+                ):  # collides in Z
+                    print("Collided in Z")
+                    dz = 0
+
+        if not collided:
+            self._xmove(dx, world)
+            self._ymove(dy, world)
+            self._zmove(dz, world)
+            self.hitbox.pos = self.pos
 
     def walk(self, f, r, world: World):
         """walk in the direction of the player's yaw, f units forward, r units right"""
@@ -471,23 +525,21 @@ class Player:
 
 
 class Camera:
-    def __init__(self, plyr: Player):
-        self.fov = 90
-        self.near = 0.1
-        self.far = 1000
-        self.pos = plyr.pos
-        self.yaw = plyr.yaw
-        self.pitch = plyr.pitch
+    # def __init__(self, plyr: Player):
+    #     self.pos = plyr.pos
+    #     self.yaw = plyr.yaw
+    #     self.pitch = plyr.pitch
+    #     self.fov = 90
+    #     self.near = 0.1
+    #     self.far = 1000
 
-    # def __init__(self, fov=90, near=0.1, far=1000, x=0, y=0, z=0, yaw=0, pitch=0):
-    #     self.fov = fov
-    #     self.near = near
-    #     self.far = far
-    #     self.x = x
-    #     self.y = y
-    #     self.z = z
-    #     self.yaw = yaw
-    #     self.pitch = pitch
+    def __init__(self, pos, yaw=0, pitch=0, fov=90, near=0.1, far=1000):
+        self.pos = pos
+        self.yaw = yaw
+        self.pitch = pitch
+        self.fov = fov
+        self.near = near
+        self.far = far
 
     def move(self, dx, dy, dz):
         self.pos.x += dx
@@ -565,10 +617,25 @@ class Camera:
         )
 
 
+class GameOptions:
+    def __init__(self):
+        self.show_debug_info = True
+        self.sensitivity = 0.2
+        self.show_fps = True
+        self.visual_debug = {
+            "hitboxes": False,
+            "normals": False,
+        }
+
+    def toggle_debug_info(self):
+        self.show_debug_info = not self.show_debug_info
+
+
 class Screen:
-    def __init__(self, surface: pygame.Surface, camera: Camera):
+    def __init__(self, surface: pygame.Surface, camera: Camera, options: GameOptions):
         self.surface = surface
         self.camera = camera
+        self.options = options
 
     def set_camera(self, camera: Camera):
         """change camera view"""
@@ -625,7 +692,7 @@ class Screen:
         collision!!
         """
 
-    def render_face(self, face: Face, visual_debug, outline=False):
+    def render_face(self, face: Face, outline=False):
         """render a Face onto screen"""
 
         if face is None:
@@ -647,7 +714,7 @@ class Screen:
                 self.surface, (0, 0, 0), True, scrn_verts, 1
             )  # draw lines around face
 
-        if visual_debug["normals"]:  # draw face normals
+        if self.options.visual_debug["normals"]:  # draw face normals
             face_center = face.get_center()
             face_normal = face.get_normal()
             normal_end = Coordinate(
@@ -664,11 +731,11 @@ class Screen:
                     self.surface, (255, 0, 0), scrn_center, scrn_normal_end, 2
                 )
 
-    def render_block(self, block: GenericBlock, visual_debug, outline=False):
+    def render_block(self, block: GenericBlock, outline=False):
         """render a Block onto screen"""
 
         faces = block.get_faces()
-        if not block.transparent:
+        if not block.transparent:  # don't cull transparent blockfaces
             # backface culling
             culled_faces = []
             for face in faces:
@@ -692,9 +759,9 @@ class Screen:
             reverse=True,
         )
         for face in faces:
-            self.render_face(face, visual_debug, outline=outline)
+            self.render_face(face, outline=outline)
 
-        if visual_debug["hitboxes"]:
+        if self.options.visual_debug["hitboxes"]:
             hitbox = block.hitbox
             start = hitbox.get_start()
             end = hitbox.get_end()
@@ -706,35 +773,21 @@ class Screen:
             #     scrn_end = self.denormalize(*proj_end)
             #     pygame.draw.rect(self.surface, (255, 0, 0), (scrn_start, scrn_end), 2)
 
-    def render(self, world: World, points, visual_debug, update=False):
+    def render(self, world: World, points, update=False):
         self.render_point(*points)
         blocks = world.blocks.values()
         blocks = sorted(
             blocks, key=lambda x: self.camera.get_zdist(x.get_center()), reverse=True
         )
         for block in blocks:
-            self.render_block(block, visual_debug, outline=True)
+            self.render_block(block, outline=True)
         if update:
             pygame.display.flip()
 
 
-class GameOptions:
-    def __init__(self):
-        self.show_debug_info = True
-        self.sensitivity = 0.2
-        self.show_fps = True
-        self.visual_debug = {
-            "hitboxes": True,
-            "normals": False,
-        }
-
-    def toggle_debug_info(self):
-        self.show_debug_info = not self.show_debug_info
-
-
-user = Player()
-screen = Screen(screen_surf, user.cam)
+user = Player(Coordinate(0, 2, 0))
 options = GameOptions()
+screen = Screen(screen_surf, user.cam, options)
 world = World()
 
 points = [
@@ -750,11 +803,11 @@ points = [
 world.add_block(Block(Coordinate(0, 0, 0), (255, 0, 0)))
 world.add_block(Block(Coordinate(1, 3, 5), (100, 150, 255)))
 
-for i in range(-3, 6):
-    for j in range(3, 8):
+for i in range(-8, 10):
+    for j in range(-10, 8):
         world.add_block(Block(Coordinate(i, 0, j), (112, 168, 101)))
 
-world.add_block(BlockSlab(Coordinate(0, 2, 0), (112, 168, 101)))
+world.add_block(BlockSlab(Coordinate(0, 2, 2), (112, 168, 101)))
 world.add_block(BlockSlab(Coordinate(1, 2, 0), (112, 168, 101), bottom=False))
 world.add_block(BlockStairs(Coordinate(4, 2, 0), (112, 168, 101)))
 world.add_block(BlockStairs(Coordinate(6, 2, 0), (190, 168, 50), bottom=False))
@@ -809,35 +862,35 @@ while running:
     if keys[pygame.K_LSHIFT]:
         user.move(0, -0.1, 0, world)
     if keys[pygame.K_r]:
-        user.teleport(Coordinate(0, 0, 0))
+        user.teleport(Coordinate(0, 2, 0))
 
     mouse_dx, mouse_dy = pygame.mouse.get_rel()
     user.rotate(mouse_dx * options.sensitivity, -mouse_dy * options.sensitivity)
 
     screen.clear()
-    screen.render(world, points, visual_debug=options.visual_debug)
+    screen.render(world, points)
     if options.show_debug_info:
         screen.render_debug_info(user)
 
-    snap_pos = Coordinate(
-        math.floor(user.pos.x), math.floor(user.pos.y), math.floor(user.pos.z)
-    )
-    surrounding = [
-        Coordinate(0, 0, 0),
-        Coordinate(1, 0, 0),
-        Coordinate(-1, 0, 0),
-        Coordinate(0, 1, 0),
-        Coordinate(0, -1, 0),
-        Coordinate(0, 0, 1),
-        Coordinate(0, 0, -1),
-    ]
-    for pos in surrounding:
-        blk = world.get_block(snap_pos + pos)
-        # print(blk)
-        if blk is None:
-            pass  # world.add_block(Block(pos, (0, 255, 0)))
-        elif blk.hitbox.collides(user.hitbox):
-            print(f"Collided with block!!! {blk.pos.get()}")
+    # snap_pos = Coordinate(
+    #     math.floor(user.pos.x), math.floor(user.pos.y), math.floor(user.pos.z)
+    # )
+    # surrounding = [
+    #     Coordinate(0, 0, 0),
+    #     Coordinate(1, 0, 0),
+    #     Coordinate(-1, 0, 0),
+    #     Coordinate(0, 1, 0),
+    #     Coordinate(0, -1, 0),
+    #     Coordinate(0, 0, 1),
+    #     Coordinate(0, 0, -1),
+    # ]
+    # for pos in surrounding:
+    #     blk = world.get_block(snap_pos + pos)
+    #     # print(blk)
+    #     if blk is None:
+    #         pass  # world.add_block(Block(pos, (0, 255, 0)))
+    #     elif blk.hitbox.collides(user.hitbox):
+    #         print(f"Collided with block!!! {blk.pos.get()}")
     # below = world.get_block(snap_pos - Coordinate(0, 1, 0))
     # if below is None:
     #     pass  # print(f"No block below, current: {snap_pos.get()}, hb: {user.hitbox}")
