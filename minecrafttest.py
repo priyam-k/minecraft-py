@@ -206,20 +206,24 @@ class BlockSlab(GenericBlock):
             self.pos.z + 0.5,
         )
 
+
 class BlockStairs(GenericBlock):
     """A stair block"""
+
     # add direction and top/bottom properties also
-    def __init__(self, pos: Coordinate, color, direction="n" ,bottom=True, transparent=False):
+    def __init__(
+        self, pos: Coordinate, color, direction="n", bottom=True, transparent=False
+    ):
         super().__init__(pos, color, transparent)
         self.facemap = [
-            (0, 1, 2, 3), # back
-            (1, 4, 5, 2), # bottom
-            (4, 7, 6, 5), # front of step1
-            (8, 9, 3, 2, 5, 6), # left side
-            (10, 7, 4, 1, 0, 11), # right side
-            (8, 6, 7, 10), # top of step1
-            (8, 10, 11, 9), # front of step2
-            (3, 9, 11, 0) # top of step2
+            (0, 1, 2, 3),  # back
+            (1, 4, 5, 2),  # bottom
+            (4, 7, 6, 5),  # front of step1
+            (8, 9, 3, 2, 5, 6),  # left side
+            (10, 7, 4, 1, 0, 11),  # right side
+            (8, 6, 7, 10),  # top of step1
+            (8, 10, 11, 9),  # front of step2
+            (3, 9, 11, 0),  # top of step2
         ]
         self.direction = direction
         self.bottom = bottom
@@ -244,22 +248,120 @@ class BlockStairs(GenericBlock):
     def _calc_verts(self):
         """calculate vertices of block for caching"""
         if self.direction == "n":
-            pass # default, facing +z
+            pass  # default, facing +z
         elif self.direction == "e":
             # facing +x
-            self.currentoffsets = [Coordinate(c.z, c.y, 1-c.x) for c in self.baseoffsets]
+            self.currentoffsets = [
+                Coordinate(c.z, c.y, 1 - c.x) for c in self.baseoffsets
+            ]
         elif self.direction == "s":
             # facing -z
-            self.currentoffsets = [Coordinate(1-c.x, c.y, 1-c.z) for c in self.baseoffsets]
+            self.currentoffsets = [
+                Coordinate(1 - c.x, c.y, 1 - c.z) for c in self.baseoffsets
+            ]
         elif self.direction == "w":
             # facing -x
-            self.currentoffsets = [Coordinate(1-c.z, c.y, c.x) for c in self.baseoffsets]
-        if not self.bottom: # flip the block
-            self.currentoffsets = [Coordinate(1-c.x, 1-c.y, c.z) for c in self.baseoffsets]
+            self.currentoffsets = [
+                Coordinate(1 - c.z, c.y, c.x) for c in self.baseoffsets
+            ]
+        if not self.bottom:  # flip the block
+            self.currentoffsets = [
+                Coordinate(1 - c.x, 1 - c.y, c.z) for c in self.baseoffsets
+            ]
         return [self.pos + offset for offset in self.currentoffsets]
 
-    def get_center(self): # varies based on direction/top/bottom
+    def get_center(self):  # varies based on direction/top/bottom
         return Coordinate(self.pos.x + 0.5, self.pos.y + 0.5, self.pos.z + 0.5)
+
+
+class BlockVerticalSlab(GenericBlock):
+    """A vertical slab that's half the width of a normal block (0.5x1x1)"""
+
+    def __init__(self, pos: Coordinate, color, left=True, transparent=False):
+        super().__init__(pos, color, transparent)
+        self.facemap = [
+            (0, 3, 2, 1),  # Front face (-z)
+            (4, 5, 6, 7),  # Back face (+z)
+            (0, 1, 5, 4),  # Bottom face (-y)
+            (2, 3, 7, 6),  # Top face (+y)
+            (1, 2, 6, 5),  # Right face (+x)
+            (0, 4, 7, 3),  # Left face (-x)
+        ]
+        self.left = left
+        self.verts = self._calc_verts()
+        self.faces = self._calc_faces()
+
+    def _calc_verts(self):
+        """calculate vertices of block for caching"""
+        if self.left:
+            return [
+                Coordinate(self.pos.x, self.pos.y, self.pos.z),
+                Coordinate(self.pos.x + 0.5, self.pos.y, self.pos.z),
+                Coordinate(self.pos.x + 0.5, self.pos.y + 1, self.pos.z),
+                Coordinate(self.pos.x, self.pos.y + 1, self.pos.z),
+                Coordinate(self.pos.x, self.pos.y, self.pos.z + 1),
+                Coordinate(self.pos.x + 0.5, self.pos.y, self.pos.z + 1),
+                Coordinate(self.pos.x + 0.5, self.pos.y + 1, self.pos.z + 1),
+                Coordinate(self.pos.x, self.pos.y + 1, self.pos.z + 1),
+            ]
+        else:
+            return [
+                Coordinate(self.pos.x + 0.5, self.pos.y, self.pos.z),
+                Coordinate(self.pos.x + 1, self.pos.y, self.pos.z),
+                Coordinate(self.pos.x + 1, self.pos.y + 1, self.pos.z),
+                Coordinate(self.pos.x + 0.5, self.pos.y + 1, self.pos.z),
+                Coordinate(self.pos.x + 0.5, self.pos.y, self.pos.z + 1),
+                Coordinate(self.pos.x + 1, self.pos.y, self.pos.z + 1),
+                Coordinate(self.pos.x + 1, self.pos.y + 1, self.pos.z + 1),
+                Coordinate(self.pos.x + 0.5, self.pos.y + 1, self.pos.z + 1),
+            ]
+
+    def get_center(self):
+        return Coordinate(
+            self.pos.x + 0.25 if self.left else self.pos.x + 0.75,
+            self.pos.y + 0.5,
+            self.pos.z + 0.5,
+        )
+
+
+class Model(GenericBlock):
+    """A generic model block"""
+
+    def __init__(self, pos: Coordinate, color, facemap, verts, transparent=False):
+        super().__init__(pos, color, transparent)
+        self.facemap = facemap
+        self.offsets = verts
+        self.verts = self._calc_verts()
+        self.faces = self._calc_faces()
+
+    def _calc_verts(self):
+        """calculate vertices of block for caching"""
+        return [self.pos + offset for offset in self.offsets]
+
+    def get_center(self):
+        return Coordinate(self.pos.x + 0.5, self.pos.y + 0.5, self.pos.z + 0.5)
+
+
+class World:
+    def __init__(self):
+        self.blocks = {}
+
+    def set_block(self, block: GenericBlock):
+        self.blocks[block.pos] = block
+
+    def add_block(self, block: GenericBlock):
+        if block.pos not in self.blocks:
+            self.set_block(block)
+        else:
+            print("Block already exists at position.")
+
+    def remove_block(self, pos: Coordinate):
+        if pos in self.blocks:
+            del self.blocks[pos]
+
+    def get_block(self, pos: Coordinate):
+        return self.blocks.get(pos, None)
+
 
 class Player:
     def __init__(self, pos=Coordinate(0, 0, 0)):
@@ -355,7 +457,7 @@ class Camera:
         """project a face onto the 2d screen in this camera's view"""
         return [self.project(v) for v in face.get_vertices()]
 
-    def project_block(self, block: Block):
+    def project_block(self, block: GenericBlock):
         """project a block onto the 2d screen in this camera's view"""
 
         faces = block.get_faces()
@@ -469,25 +571,27 @@ class Screen:
         pygame.draw.polygon(self.surface, face.color, scrn_verts)  # draw face
         if outline:
             pygame.draw.lines(
-                self.surface, (0, 200, 0), True, scrn_verts, 1
+                self.surface, (0, 0, 0), True, scrn_verts, 1
             )  # draw lines around face
-        
-        if debug_normals: # draw face normals
+
+        if debug_normals:  # draw face normals
             face_center = face.get_center()
             face_normal = face.get_normal()
             normal_end = Coordinate(
-                face_center.x + face_normal[0]/2,
-                face_center.y + face_normal[1]/2,
-                face_center.z + face_normal[2]/2,
+                face_center.x + face_normal[0] / 2,
+                face_center.y + face_normal[1] / 2,
+                face_center.z + face_normal[2] / 2,
             )
             proj_center = self.camera.project(face_center)
             proj_normal_end = self.camera.project(normal_end)
             if proj_center and proj_normal_end:
                 scrn_center = self.denormalize(*proj_center)
                 scrn_normal_end = self.denormalize(*proj_normal_end)
-                pygame.draw.line(self.surface, (255, 0, 0), scrn_center, scrn_normal_end, 2)
+                pygame.draw.line(
+                    self.surface, (255, 0, 0), scrn_center, scrn_normal_end, 2
+                )
 
-    def render_block(self, block: Block, outline=False, debug_normals=False):
+    def render_block(self, block: GenericBlock, outline=False, debug_normals=False):
         """render a Block onto screen"""
 
         faces = block.get_faces()
@@ -513,8 +617,9 @@ class Screen:
         for face in faces:
             self.render_face(face, outline=outline, debug_normals=debug_normals)
 
-    def render(self, blocks: list[Block], points, update=False, debug_normals=False):
+    def render(self, world: World, points, update=False, debug_normals=False):
         self.render_point(*points)
+        blocks = world.blocks.values()
         blocks = sorted(
             blocks, key=lambda x: self.camera.get_zdist(x.get_center()), reverse=True
         )
@@ -529,7 +634,7 @@ class GameOptions:
         self.show_debug_info = True
         self.sensitivity = 0.2
         self.show_fps = True
-        self.debug_normals = True
+        self.debug_normals = False
 
     def toggle_debug_info(self):
         self.show_debug_info = not self.show_debug_info
@@ -538,6 +643,7 @@ class GameOptions:
 user = Player()
 screen = Screen(screen_surf, user.cam)
 options = GameOptions()
+world = World()
 
 points = [
     Coordinate(0, 0, 0),
@@ -549,19 +655,46 @@ points = [
     Coordinate(1, 1, 1),
     Coordinate(0, 1, 1),
 ]
-blocks = [Block(Coordinate(1, 3, 5), (100, 150, 255))]
+world.add_block(Block(Coordinate(0, 0, 0), (255, 0, 0)))
+world.add_block(Block(Coordinate(1, 3, 5), (100, 150, 255)))
 
 for i in range(-3, 6):
     for j in range(3, 8):
-        blocks.append(Block(Coordinate(i, 0, j), (112, 168, 101)))
+        world.add_block(Block(Coordinate(i, 0, j), (112, 168, 101)))
 
-blocks.append(BlockSlab(Coordinate(0, 2, 0), (112, 168, 101)))
-blocks.append(BlockSlab(Coordinate(1, 2, 0), (112, 168, 101), bottom=False))
-blocks.append(BlockStairs(Coordinate(4, 2, 0), (112, 168, 101)))
-blocks.append(BlockStairs(Coordinate(6, 2, 0), (190, 168, 50), bottom=False))
-blocks.append(BlockStairs(Coordinate(8, 2, 0), (190, 168, 50), direction="s"))
-blocks.append(BlockStairs(Coordinate(10, 2, 0), (190, 168, 50), direction="e"))
-blocks.append(BlockStairs(Coordinate(12, 2, 0), (190, 168, 50), direction="w"))
+world.add_block(BlockSlab(Coordinate(0, 2, 0), (112, 168, 101)))
+world.add_block(BlockSlab(Coordinate(1, 2, 0), (112, 168, 101), bottom=False))
+world.add_block(BlockStairs(Coordinate(4, 2, 0), (112, 168, 101)))
+world.add_block(BlockStairs(Coordinate(6, 2, 0), (190, 168, 50), bottom=False))
+world.add_block(BlockStairs(Coordinate(8, 2, 0), (190, 168, 50), direction="s"))
+world.add_block(BlockStairs(Coordinate(10, 2, 0), (190, 168, 50), direction="e"))
+world.add_block(BlockStairs(Coordinate(12, 2, 0), (190, 168, 50), direction="w"))
+world.add_block(BlockVerticalSlab(Coordinate(14, 2, 0), (190, 168, 50)))
+world.add_block(BlockVerticalSlab(Coordinate(16, 2, 0), (190, 168, 50), left=False))
+world.add_block(
+    Model(
+        Coordinate(18, 2, 0),
+        (150, 75, 0),
+        [
+            (0, 1, 2, 3), # mesh0
+            (3, 2, 4, 5), # mesh1
+            (5, 4, 6, 7), # mesh2
+            (7, 6, 1, 0), # mesh3
+            (0, 3, 5, 7), # mesh4
+            (1, 6, 4, 2)  # mesh5
+        ],
+        [
+            Coordinate(1, 0.33, 0),
+            Coordinate(1, 0, 0),
+            Coordinate(0, 0, 0),
+            Coordinate(0, 0.33, 0),
+            Coordinate(0, 0, 1),
+            Coordinate(0, 0.33, 1),
+            Coordinate(1, 0, 1),
+            Coordinate(1, 0.33, 1),
+        ],
+    )
+)
 
 
 running = True
@@ -577,8 +710,12 @@ while running:
                 # pygame.display.toggle_fullscreen()
                 # if pygame.display.is_fullscreen():
                 screen_surf = pygame.display.set_mode(
-                    (800, 600), pygame.FULLSCREEN | pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE
-                )                
+                    (800, 600),
+                    pygame.FULLSCREEN
+                    | pygame.RESIZABLE
+                    | pygame.DOUBLEBUF
+                    | pygame.HWSURFACE,
+                )
                 screen.surface = screen_surf
             if event.key == pygame.K_ESCAPE:
                 running = False
@@ -610,7 +747,7 @@ while running:
     user.rotate(mouse_dx * options.sensitivity, -mouse_dy * options.sensitivity)
 
     screen.clear()
-    screen.render(blocks, points, debug_normals=options.debug_normals)
+    screen.render(world, points, debug_normals=options.debug_normals)
     if options.show_debug_info:
         screen.render_debug_info(user)
 
