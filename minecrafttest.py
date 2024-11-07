@@ -35,6 +35,9 @@ class Coordinate:
     def get(self) -> tuple:
         return (self.x, self.y, self.z)
 
+    def copy(self):
+        return Coordinate(self.x, self.y, self.z)
+
     def __str__(self):
         return f"({self.x}, {self.y}, {self.z})"
 
@@ -400,13 +403,13 @@ class Hitbox:
         startb = other.pos + other.start
         endb = other.pos + other.end
 
-        if not (enda.x >= startb.x and endb.x >= starta.x):
+        if not (enda.x > startb.x and endb.x > starta.x):
             return False
         # Check overlap on the y-axis
-        if not (enda.y >= startb.y and endb.y >= starta.y):
+        if not (enda.y > startb.y and endb.y > starta.y):
             return False
         # Check overlap on the z-axis
-        if not (enda.z >= startb.z and endb.z >= starta.z):
+        if not (enda.z > startb.z and endb.z > starta.z):
             return False
 
         # Overlaps on all axes, so there's a collision
@@ -427,10 +430,10 @@ class Player:
         self.pos = pos
         self.yaw = 0  # left/right
         self.pitch = 0  # up/down
-        self.cam = Camera(self.pos, self.yaw, self.pitch)
+        self.cam = Camera(self.pos.copy(), self.yaw, self.pitch)  # first person cam
         self.hitbox = Hitbox(
             self.pos, Coordinate(-0.3, 0, -0.3), Coordinate(0.3, 1.8, 0.3)
-        )
+        )  # hitbox tied to self.pos
 
     def _xmove(self, dx, world: World):
         """move the player by dx"""
@@ -497,11 +500,9 @@ class Player:
                     print("Collided in Z")
                     dz = 0
 
-        if not collided:
-            self._xmove(dx, world)
-            self._ymove(dy, world)
-            self._zmove(dz, world)
-            self.hitbox.pos = self.pos
+        self._xmove(dx, world)
+        self._ymove(dy, world)
+        self._zmove(dz, world)
 
     def walk(self, f, r, world: World):
         """walk in the direction of the player's yaw, f units forward, r units right"""
@@ -521,7 +522,7 @@ class Player:
     def teleport(self, pos: Coordinate):
         """teleport the player to given position"""
         self.cam.teleport(pos)
-        self.pos = pos
+        self.pos = pos.copy()
 
 
 class Camera:
@@ -551,7 +552,7 @@ class Camera:
         self.pitch = max(min(self.pitch + dpitch, 90), -90)
 
     def teleport(self, pos: Coordinate):
-        self.pos = pos
+        self.pos = pos.copy()
 
     def project(self, pt: Coordinate):
         """project a 3d point onto the 2d screen in this camera's view"""
@@ -573,6 +574,8 @@ class Camera:
             return None
 
         # project onto 2d
+        if rz == 0:
+            rz = 0.0001
         normx = rx / rz * tan(self.fov / 2)
         normy = ry / rz * tan(self.fov / 2)
 
