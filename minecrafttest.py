@@ -1,6 +1,7 @@
 import math
 
 import pygame
+import pygame.gfxdraw
 
 pygame.init()
 screen_surf = pygame.display.set_mode(
@@ -778,9 +779,9 @@ class Screen:
         # then draw vertices
         pygame.draw.polygon(self.surface, face.color, scrn_verts)  # draw face
         if outline:
-            pygame.draw.lines(
+            pygame.draw.aalines(
                 self.surface, (0, 0, 0), True, scrn_verts, 1
-            )  # draw lines around face
+            )  # draw antialiased lines around face
 
         if self.options.visual_debug["normals"]:  # draw face normals
             face_center = face.get_center()
@@ -862,7 +863,7 @@ class Screen:
             if self.options.visual_debug["player-model"]:
                 model = BlockModel(
                     entity.get_pos(),
-                    (255, 0, 0),
+                    (255, 0, 0, 0.1),
                     [
                         (2, 1, 0),
                         (0, 3, 2),
@@ -926,6 +927,7 @@ world.add_block(BlockStairs(Coordinate(10, 2, 0), (190, 168, 50), direction="e")
 world.add_block(BlockStairs(Coordinate(12, 2, 0), (190, 168, 50), direction="w"))
 world.add_block(BlockVerticalSlab(Coordinate(14, 2, 0), (190, 168, 50)))
 world.add_block(BlockVerticalSlab(Coordinate(16, 2, 0), (190, 168, 50), left=False))
+world.add_block(BlockVerticalSlab(Coordinate(16, 2, 3), (190, 168, 50, 0), left=False))
 
 
 running = True
