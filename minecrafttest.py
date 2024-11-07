@@ -353,6 +353,15 @@ class BlockModel(GenericBlock):
 class World:
     def __init__(self):
         self.blocks = {}
+        self.entities = {}
+
+    def add_entity(self, entity):
+        self.entities[entity.id] = entity
+
+    def remove_entity(self, entity):
+        eid = entity.id
+        if eid in self.entities:
+            del self.entities[eid]
 
     def set_block(self, block: GenericBlock):
         self.blocks[block.pos.get()] = block
@@ -425,33 +434,45 @@ class Hitbox:
         )
 
 
-class Player:
-    def __init__(self, pos=Coordinate(0, 0, 0)):
+class Entity:
+    def __init__(self, pos: Coordinate, world: World):
         self.pos = pos
+        self.world = world
+        self.id = id(self)
         self.yaw = 0  # left/right
         self.pitch = 0  # up/down
-        self.cam = Camera(self.pos.copy(), self.yaw, self.pitch)  # first person cam
-        self.hitbox = Hitbox(
-            self.pos, Coordinate(-0.3, 0, -0.3), Coordinate(0.3, 1.8, 0.3)
-        )  # hitbox tied to self.pos
+        self.cam_offset = None
+        self.hitbox = None
+        self.surrounding = None
 
-    def _xmove(self, dx, world: World):
-        """move the player by dx"""
+    def initcam(self):
+        self.cam = Camera(self.pos.copy() + self.cam_offset, self.yaw, self.pitch)
+
+    def movecam(self, dx=0, dy=0, dz=0, dyaw=0, dpitch=0):
+        """overloadable for custom camera movement"""
+        self.cam.move(dx, dy, dz)
+        self.cam.rotate(dyaw, dpitch)
+
+    def tpcam(self, pos: Coordinate):
+        """overloadable for custom camera teleportation"""
+        self.cam.teleport(pos)
+
+    def _xmove(self, dx):
+        """move the entity by dx"""
         self.pos.x += dx
-        self.cam.move(dx, 0, 0)
+        self.movecam(dx=dx)
 
-    def _ymove(self, dy, world: World):
-        """move the player by dy"""
+    def _ymove(self, dy):
+        """move the entity by dy"""
         self.pos.y += dy
-        self.cam.move(0, dy, 0)
+        self.movecam(dy=dy)
 
-    def _zmove(self, dz, world: World):
-        """move the player by dz"""
+    def _zmove(self, dz):
+        """move the entity by dz"""
         self.pos.z += dz
-        self.cam.move(0, 0, dz)
+        self.movecam(dz=dz)
 
-    def move(self, dx, dy, dz, world: World):
-        """move the player by dx, dy, dz"""
+    def move(self, dx, dy, dz):
         collided = False
         snap_pos = Coordinate(
             math.floor(self.pos.x + dx),
@@ -459,30 +480,17 @@ class Player:
             math.floor(self.pos.z + dz),
         )
         next_hitbox = self.hitbox.new(self.pos + Coordinate(dx, dy, dz))
-        surrounding = [
-            Coordinate(0, 0, 0),
-            Coordinate(1, 0, 0),
-            Coordinate(-1, 0, 0),
-            Coordinate(0, 1, 0),
-            Coordinate(0, -1, 0),
-            Coordinate(0, 0, 1),
-            Coordinate(0, 0, -1),
-        ]
-        for pos in surrounding:
+        for pos in self.surrounding:  # check for collision
             blk = world.get_block(snap_pos + pos)
-            # print(blk)
-            if blk is None:
-                pass  # world.add_block(Block(pos, (0, 255, 0)))
-            elif blk.hitbox.collides(next_hitbox):
-                # print(f"Collided with block!!! {blk.pos.get()}")
+            if blk is not None and blk.hitbox.collides(next_hitbox):
                 collided = True
                 break
 
-        if collided:
+        if collided:  # check directional collision
             next_hitbox_x = self.hitbox.new(self.pos + Coordinate(dx, 0, 0))
             next_hitbox_y = self.hitbox.new(self.pos + Coordinate(0, dy, 0))
             next_hitbox_z = self.hitbox.new(self.pos + Coordinate(0, 0, dz))
-            for pos in surrounding:
+            for pos in self.surrounding:
                 blk = world.get_block(snap_pos + pos)
                 if blk is not None and blk.hitbox.collides(
                     next_hitbox_x
@@ -500,29 +508,84 @@ class Player:
                     print("Collided in Z")
                     dz = 0
 
-        self._xmove(dx, world)
-        self._ymove(dy, world)
-        self._zmove(dz, world)
+        self._xmove(dx)
+        self._ymove(dy)
+        self._zmove(dz)
 
-    def walk(self, f, r, world: World):
-        """walk in the direction of the player's yaw, f units forward, r units right"""
+    def walk(self, f, r):
         self.move(
             f * sin(self.yaw) + r * cos(self.yaw),
             0,
             f * cos(self.yaw) - r * sin(self.yaw),
-            world,
         )
 
     def rotate(self, dyaw, dpitch):
-        """rotate the player by dyaw, dpitch"""
-        self.cam.rotate(dyaw, dpitch)
+        self.movecam(dyaw=dyaw, dpitch=dpitch)
         self.yaw = (self.yaw + dyaw) % 360
         self.pitch = max(min(self.pitch + dpitch, 90), -90)
 
     def teleport(self, pos: Coordinate):
-        """teleport the player to given position"""
-        self.cam.teleport(pos)
         self.pos = pos.copy()
+        self.tpcam(pos + self.cam_offset)
+
+    def get_pos(self):
+        return self.pos
+
+
+class Player(Entity):
+    def __init__(self, pos: Coordinate, world: World):
+        super().__init__(pos, world)
+        self.cam_offset = Coordinate(0, 1.6, 0)
+        self.initcam()
+        self.hitbox = Hitbox(
+            self.pos, Coordinate(-0.3, 0, -0.3), Coordinate(0.3, 1.8, 0.3)
+        )  # hitbox tied to self.pos
+        self.surrounding = [
+            Coordinate(0, -1, 0),
+            Coordinate(0, 0, 0),
+            Coordinate(-1, 0, 0),
+            Coordinate(-1, 0, -1),
+            Coordinate(0, 0, -1),
+            Coordinate(1, 0, -1),
+            Coordinate(1, 0, 0),
+            Coordinate(1, 0, 1),
+            Coordinate(0, 0, 1),
+            Coordinate(-1, 0, 1),
+            Coordinate(0, 1, 0),
+            Coordinate(-1, 1, 0),
+            Coordinate(-1, 1, -1),
+            Coordinate(0, 1, -1),
+            Coordinate(1, 1, -1),
+            Coordinate(1, 1, 0),
+            Coordinate(1, 1, 1),
+            Coordinate(0, 1, 1),
+            Coordinate(-1, 1, 1),
+            Coordinate(0, 2, 0),
+        ]
+        # end init
+        self.cam3dist = 2
+        self.cam3 = Camera(
+            self.pos.copy() + self.cam_offset + Coordinate(0, 0, -self.cam3dist),
+            self.yaw,
+            self.pitch,
+        )  # scuffed 3rd person cam
+
+    def movecam(self, dx=0, dy=0, dz=0, dyaw=0, dpitch=0):
+        self.cam.move(dx, dy, dz)
+        self.cam.rotate(dyaw, dpitch)
+        self.cam3.teleport(
+            self.pos
+            + self.cam_offset
+            + Coordinate(
+                -self.cam3dist * sin(self.yaw), 0, -self.cam3dist * cos(self.yaw)
+            )
+        )
+        # self.cam3.move(dx, dy, dz)
+        self.cam3.rotate(dyaw, dpitch)
+
+    def tpcam(self, pos: Coordinate):
+        self.cam.teleport(pos + self.cam_offset)
+        self.cam3.teleport(pos + self.cam_offset + Coordinate(0, 0, -self.cam3dist))
 
 
 class Camera:
@@ -626,8 +689,10 @@ class GameOptions:
         self.sensitivity = 0.2
         self.show_fps = True
         self.visual_debug = {
-            "hitboxes": False,
+            "hitbox-dots": False,
             "normals": False,
+            "player-hitbox": False,
+            "player-model": True,
         }
 
     def toggle_debug_info(self):
@@ -764,7 +829,7 @@ class Screen:
         for face in faces:
             self.render_face(face, outline=outline)
 
-        if self.options.visual_debug["hitboxes"]:
+        if self.options.visual_debug["hitbox-dots"]:
             hitbox = block.hitbox
             start = hitbox.get_start()
             end = hitbox.get_end()
@@ -776,6 +841,10 @@ class Screen:
             #     scrn_end = self.denormalize(*proj_end)
             #     pygame.draw.rect(self.surface, (255, 0, 0), (scrn_start, scrn_end), 2)
 
+    def render_model(self, model: BlockModel, outline=False):
+        """render a BlockModel onto screen"""
+        self.render_block(model, outline=outline)
+
     def render(self, world: World, points, update=False):
         self.render_point(*points)
         blocks = world.blocks.values()
@@ -784,14 +853,52 @@ class Screen:
         )
         for block in blocks:
             self.render_block(block, outline=True)
+        for entity in world.entities.values():
+            if self.options.visual_debug["player-hitbox"]:
+                hitbox = entity.hitbox
+                start = hitbox.get_start()
+                end = hitbox.get_end()
+                self.render_point(start, end, color=(0, 255, 0))
+            if self.options.visual_debug["player-model"]:
+                model = BlockModel(
+                    entity.get_pos(),
+                    (255, 0, 0),
+                    [
+                        (2, 1, 0),
+                        (0, 3, 2),
+                        (4, 2, 3),
+                        (3, 5, 4),
+                        (6, 4, 5),
+                        (5, 7, 6),
+                        (7, 6, 1),
+                        (1, 0, 7),
+                        (3, 0, 7),
+                        (7, 5, 3),
+                        (1, 2, 4),
+                        (4, 6, 1),
+                    ],
+                    [
+                        Coordinate(0.3, 1.8, 0.3),
+                        Coordinate(0.3, 0.0, 0.3),
+                        Coordinate(0.3, 0.0, -0.3),
+                        Coordinate(0.3, 1.8, -0.3),
+                        Coordinate(-0.3, 0.0, -0.3),
+                        Coordinate(-0.3, 1.8, -0.3),
+                        Coordinate(-0.3, 0.0, 0.3),
+                        Coordinate(-0.3, 1.8, 0.3),
+                    ],
+                    transparent=True,
+                )
+                self.render_block(model, outline=True)
         if update:
             pygame.display.flip()
 
 
-user = Player(Coordinate(0, 2, 0))
+world = World()
+user = Player(Coordinate(0, 2, 0), world)
 options = GameOptions()
 screen = Screen(screen_surf, user.cam, options)
-world = World()
+world.add_entity(user)
 
 points = [
     Coordinate(0, 0, 0),
@@ -843,27 +950,29 @@ while running:
                 screen.surface = screen_surf
             if event.key == pygame.K_ESCAPE:
                 running = False
+            if event.key == pygame.K_F5:
+                screen.set_camera(user.cam3)
     keys = pygame.key.get_pressed()
     if keys[pygame.K_RIGHT]:
-        user.move(0.1, 0, 0, world)
+        user.move(0.1, 0, 0)
     if keys[pygame.K_LEFT]:
-        user.move(-0.1, 0, 0, world)
+        user.move(-0.1, 0, 0)
     if keys[pygame.K_UP]:
-        user.move(0, 0, 0.1, world)
+        user.move(0, 0, 0.1)
     if keys[pygame.K_DOWN]:
-        user.move(0, 0, -0.1, world)
+        user.move(0, 0, -0.1)
     if keys[pygame.K_w]:
-        user.walk(0.1, 0, world)
+        user.walk(0.1, 0)
     if keys[pygame.K_s]:
-        user.walk(-0.1, 0, world)
+        user.walk(-0.1, 0)
     if keys[pygame.K_a]:
-        user.walk(0, -0.1, world)
+        user.walk(0, -0.1)
     if keys[pygame.K_d]:
-        user.walk(0, 0.1, world)
+        user.walk(0, 0.1)
     if keys[pygame.K_SPACE]:
-        user.move(0, 0.1, 0, world)
+        user.move(0, 0.1, 0)
     if keys[pygame.K_LSHIFT]:
-        user.move(0, -0.1, 0, world)
+        user.move(0, -0.1, 0)
     if keys[pygame.K_r]:
         user.teleport(Coordinate(0, 2, 0))
 
