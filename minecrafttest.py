@@ -9,7 +9,7 @@ screen_surf = pygame.display.set_mode(
 )
 pygame.display.set_caption("3D thingies")
 pygame.mouse.set_visible(False)
-pygame.event.set_grab(True)
+# pygame.event.set_grab(True)
 
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 24)
@@ -693,7 +693,7 @@ class GameOptions:
             "hitbox-dots": False,
             "normals": False,
             "player-hitbox": False,
-            "player-model": True,
+            "player-model": False,
         }
 
     def toggle_debug_info(self):
@@ -928,7 +928,453 @@ world.add_block(BlockStairs(Coordinate(12, 2, 0), (190, 168, 50), direction="w")
 world.add_block(BlockVerticalSlab(Coordinate(14, 2, 0), (190, 168, 50)))
 world.add_block(BlockVerticalSlab(Coordinate(16, 2, 0), (190, 168, 50), left=False))
 world.add_block(BlockVerticalSlab(Coordinate(16, 2, 3), (190, 168, 50, 0), left=False))
-
+world.add_block(
+    BlockModel(
+        Coordinate(3, 2, 4),
+        (190, 168, 50),
+        [
+            (
+                2,
+                1,
+                0,
+            ),  # Face 0
+            (
+                0,
+                3,
+                2,
+            ),  # Face 1
+            (
+                4,
+                3,
+                0,
+            ),  # Face 2
+            (
+                0,
+                5,
+                4,
+            ),  # Face 3
+            (
+                6,
+                4,
+                5,
+            ),  # Face 4
+            (
+                5,
+                7,
+                6,
+            ),  # Face 5
+            (
+                6,
+                7,
+                1,
+            ),  # Face 6
+            (
+                1,
+                2,
+                6,
+            ),  # Face 7
+            (
+                5,
+                9,
+                8,
+            ),  # Face 8
+            (
+                1,
+                7,
+                10,
+            ),  # Face 9
+            (
+                8,
+                7,
+                5,
+            ),  # Face 10
+            (
+                8,
+                10,
+                7,
+            ),  # Face 11
+            (
+                5,
+                0,
+                11,
+            ),  # Face 12
+            (
+                11,
+                9,
+                5,
+            ),  # Face 13
+            (
+                1,
+                12,
+                11,
+            ),  # Face 14
+            (
+                11,
+                0,
+                1,
+            ),  # Face 15
+            (
+                10,
+                12,
+                1,
+            ),  # Face 16
+            (
+                13,
+                12,
+                10,
+            ),  # Face 17
+            (
+                10,
+                14,
+                13,
+            ),  # Face 18
+            (
+                16,
+                15,
+                9,
+            ),  # Face 19
+            (
+                9,
+                11,
+                16,
+            ),  # Face 20
+            (
+                17,
+                18,
+                2,
+            ),  # Face 21
+            (
+                19,
+                3,
+                2,
+            ),  # Face 22
+            (
+                2,
+                18,
+                19,
+            ),  # Face 23
+            (
+                19,
+                20,
+                4,
+            ),  # Face 24
+            (
+                21,
+                17,
+                6,
+            ),  # Face 25
+            (
+                4,
+                3,
+                19,
+            ),  # Face 26
+            (
+                4,
+                20,
+                21,
+            ),  # Face 27
+            (
+                6,
+                4,
+                21,
+            ),  # Face 28
+            (
+                2,
+                6,
+                17,
+            ),  # Face 29
+            (
+                13,
+                12,
+                18,
+            ),  # Face 30
+            (
+                11,
+                19,
+                18,
+            ),  # Face 31
+            (
+                19,
+                22,
+                16,
+            ),  # Face 32
+            (
+                23,
+                13,
+                16,
+            ),  # Face 33
+            (
+                18,
+                12,
+                11,
+            ),  # Face 34
+            (
+                16,
+                22,
+                23,
+            ),  # Face 35
+            (
+                19,
+                11,
+                16,
+            ),  # Face 36
+            (
+                13,
+                23,
+                18,
+            ),  # Face 37
+            (
+                25,
+                15,
+                24,
+            ),  # Face 38
+            (
+                20,
+                9,
+                15,
+            ),  # Face 39
+            (
+                15,
+                25,
+                20,
+            ),  # Face 40
+            (
+                20,
+                21,
+                8,
+            ),  # Face 41
+            (
+                8,
+                9,
+                20,
+            ),  # Face 42
+            (
+                24,
+                26,
+                25,
+            ),  # Face 43
+            (
+                17,
+                27,
+                14,
+            ),  # Face 44
+            (
+                27,
+                26,
+                24,
+            ),  # Face 45
+            (
+                8,
+                10,
+                17,
+            ),  # Face 46
+            (
+                24,
+                14,
+                27,
+            ),  # Face 47
+            (
+                14,
+                10,
+                17,
+            ),  # Face 48
+            (
+                8,
+                21,
+                17,
+            ),  # Face 49
+            (
+                19,
+                20,
+                25,
+            ),  # Face 50
+            (
+                25,
+                22,
+                19,
+            ),  # Face 51
+            (
+                23,
+                27,
+                17,
+            ),  # Face 52
+            (
+                17,
+                18,
+                23,
+            ),  # Face 53
+            (
+                16,
+                28,
+                29,
+            ),  # Face 54
+            (
+                16,
+                15,
+                30,
+            ),  # Face 55
+            (
+                24,
+                31,
+                30,
+            ),  # Face 56
+            (
+                30,
+                28,
+                16,
+            ),  # Face 57
+            (
+                24,
+                14,
+                31,
+            ),  # Face 58
+            (
+                14,
+                13,
+                29,
+            ),  # Face 59
+            (
+                30,
+                15,
+                24,
+            ),  # Face 60
+            (
+                29,
+                13,
+                16,
+            ),  # Face 61
+            (
+                29,
+                31,
+                14,
+            ),  # Face 62
+            (
+                32,
+                23,
+                22,
+            ),  # Face 63
+            (
+                32,
+                33,
+                27,
+            ),  # Face 64
+            (
+                33,
+                34,
+                26,
+            ),  # Face 65
+            (
+                27,
+                23,
+                32,
+            ),  # Face 66
+            (
+                26,
+                27,
+                33,
+            ),  # Face 67
+            (
+                34,
+                25,
+                26,
+            ),  # Face 68
+            (
+                34,
+                35,
+                22,
+            ),  # Face 69
+            (
+                22,
+                25,
+                34,
+            ),  # Face 70
+            (
+                22,
+                35,
+                32,
+            ),  # Face 71
+            (
+                32,
+                35,
+                28,
+            ),  # Face 72
+            (
+                28,
+                29,
+                32,
+            ),  # Face 73
+            (
+                34,
+                30,
+                28,
+            ),  # Face 74
+            (
+                28,
+                35,
+                34,
+            ),  # Face 75
+            (
+                33,
+                31,
+                30,
+            ),  # Face 76
+            (
+                30,
+                34,
+                33,
+            ),  # Face 77
+            (
+                33,
+                32,
+                29,
+            ),  # Face 78
+            (
+                29,
+                31,
+                33,
+            ),  # Face 79
+        ],
+        [
+            Coordinate(0.348057, 0.286962, -1.0),
+            Coordinate(0.348057, 0.450312, -1.0),
+            Coordinate(0.348057, 0.450312, -0.768039),
+            Coordinate(0.348057, 0.286962, -0.768039),
+            Coordinate(0.59672, 0.286962, -0.768039),
+            Coordinate(0.59672, 0.286962, -1.0),
+            Coordinate(0.59672, 0.450312, -0.768039),
+            Coordinate(0.59672, 0.450312, -1.0),
+            Coordinate(1.0, 0.45, -1.0),
+            Coordinate(1.0, 0.0, -1.0),
+            Coordinate(0.7, 0.75, -1.0),
+            Coordinate(-2.22045e-16, 0.0, -1.0),
+            Coordinate(-2.22045e-16, 0.75, -1.0),
+            Coordinate(0.0, 0.75, 0.0),
+            Coordinate(0.7, 0.75, 0.0),
+            Coordinate(1.0, 0.0, 0.0),
+            Coordinate(0.0, 0.0, 0.0),
+            Coordinate(0.868027, 0.581973, -0.768039),
+            Coordinate(0.0, 0.581973, -0.768039),
+            Coordinate(0.0, 0.162692, -0.768039),
+            Coordinate(1.0, 0.162692, -0.768039),
+            Coordinate(1.0, 0.45, -0.768039),
+            Coordinate(0.0, 0.162692, -0.194772),
+            Coordinate(0.0, 0.581973, -0.194772),
+            Coordinate(1.0, 0.45, 0.0),
+            Coordinate(1.0, 0.162692, -0.194772),
+            Coordinate(1.0, 0.45, -0.194772),
+            Coordinate(0.868027, 0.581973, -0.194772),
+            Coordinate(0.348057, 0.286962, 0.0),
+            Coordinate(0.348057, 0.450312, 0.0),
+            Coordinate(0.59672, 0.286962, 0.0),
+            Coordinate(0.59672, 0.450312, 0.0),
+            Coordinate(0.348057, 0.450312, -0.194772),
+            Coordinate(0.59672, 0.450312, -0.194772),
+            Coordinate(0.59672, 0.286962, -0.194772),
+            Coordinate(0.348057, 0.286962, -0.194772),
+        ],
+        transparent=True,
+    )
+)
 
 running = True
 while running:
