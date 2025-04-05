@@ -9,7 +9,7 @@ screen_surf = pygame.display.set_mode(
 )
 pygame.display.set_caption("3D thingies")
 pygame.mouse.set_visible(False)
-# pygame.event.set_grab(True)
+pygame.event.set_grab(True)
 
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 24)
@@ -1423,6 +1423,7 @@ while running:
         user.move(0, -0.1, 0)
     if keys[pygame.K_r]:
         user.teleport(Coordinate(0, 2, 0))
+    user.move(0, -0.03, 0)
 
     mouse_dx, mouse_dy = pygame.mouse.get_rel()
     user.rotate(mouse_dx * options.sensitivity, -mouse_dy * options.sensitivity)
